@@ -1,11 +1,12 @@
 from typing import List, Optional
 from urllib.parse import quote
 
-import requests
+import aiohttp
+from aiohttp import BasicAuth
 
-from flask_cognito_lib.config import Config
-from flask_cognito_lib.exceptions import CognitoError
-from flask_cognito_lib.utils import CognitoTokenResponse
+from quart_cognito_lib.config import Config
+from quart_cognito_lib.exceptions import CognitoError
+from quart_cognito_lib.utils import CognitoTokenResponse
 
 
 class CognitoService:
@@ -62,7 +63,7 @@ class CognitoService:
 
         return full_url
 
-    def exchange_code_for_token(
+    async def exchange_code_for_token(
         self,
         code: str,
         code_verifier: str,
@@ -96,23 +97,15 @@ class CognitoService:
             "code_verifier": code_verifier,
         }
 
-        # The Authorization header must not be present when using a
-        # Public Client, we assume this when the secret is blank.
-        # (Blank secrets are not supported on Confidential Clients)
-        if self.cfg.user_pool_client_secret:
-            auth = (self.cfg.user_pool_client_id, self.cfg.user_pool_client_secret)
-        else:
-            auth = None
-
         try:
-            response = requests.post(
-                url=self.cfg.token_endpoint,
-                data=data,
-                auth=auth,
-            )
-            response_json = response.json()
-
-        except requests.exceptions.RequestException as e:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    url=self.cfg.token_endpoint,
+                    data=data,
+                    auth=BasicAuth(self.cfg.user_pool_client_id, self.cfg.user_pool_client_secret),
+                ) as response:
+                    response_json = await response.json()
+        except aiohttp.ClientError as e:
             raise CognitoError(str(e)) from e
 
         if "error" in response_json:

@@ -1,42 +1,37 @@
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Dict, Optional
 
-from flask import Flask, g
+from quart import Quart
 
-from flask_cognito_lib.config import Config
-from flask_cognito_lib.exceptions import CognitoError
-from flask_cognito_lib.services import cognito_service_factory, token_service_factory
-from flask_cognito_lib.services.cognito_svc import CognitoService
-from flask_cognito_lib.services.token_svc import TokenService
-from flask_cognito_lib.utils import CognitoTokenResponse
+from quart_cognito_lib.config import Config
+from quart_cognito_lib.exceptions import CognitoError
+from quart_cognito_lib.services.cognito_svc import CognitoService
+from quart_cognito_lib.services.token_svc import TokenService
+from quart_cognito_lib.utils import CognitoTokenResponse
 
 
 class CognitoAuth:
     def __init__(
         self,
-        app: Optional[Flask] = None,
-        _token_service_factory: Callable = token_service_factory,
-        _cognito_service_factory: Callable = cognito_service_factory,
+        app: Optional[Quart] = None,
     ):
         """Instantiate the CognitoAuth manager
 
         Parameters
         ----------
-        app : Optional[Flask], optional
-            An optional instance of a Flask application. If doing lazy init
+        app : Optional[Quart], optional
+            An optional instance of a Quart application. If doing lazy init
             use the `init_app` method instead
         """
-        self.token_service_factory = _token_service_factory
-        self.cognito_service_factory = _cognito_service_factory
         if app is not None:
             self.init_app(app)
 
-    def init_app(self, app: Flask):
-        """Register the extension with a Flask application
+    def init_app(self, app: Quart):
+        """Register the extension with a Quart application
 
         Parameters
         ----------
-        app : Flask
-            Flask application
+        app : Quart
+            Quart application
         """
         self.cfg = Config()
         app.extensions[self.cfg.APP_EXTENSION_KEY] = self
@@ -50,10 +45,7 @@ class CognitoAuth:
         TokenService
             An instance of TokenService
         """
-        if not hasattr(g, self.cfg.CONTEXT_KEY_TOKEN_SERVICE):
-            token_service = self.token_service_factory(cfg=self.cfg)
-            setattr(g, self.cfg.CONTEXT_KEY_TOKEN_SERVICE, token_service)
-        return getattr(g, self.cfg.CONTEXT_KEY_TOKEN_SERVICE)
+        return TokenService(cfg=self.cfg)
 
     @property
     def cognito_service(self) -> CognitoService:
@@ -64,12 +56,9 @@ class CognitoAuth:
         CognitoService
             An instance of CognitoService
         """
-        if not hasattr(g, self.cfg.CONTEXT_KEY_COGNITO_SERVICE):
-            cognito_service = self.cognito_service_factory(cfg=self.cfg)
-            setattr(g, self.cfg.CONTEXT_KEY_COGNITO_SERVICE, cognito_service)
-        return getattr(g, self.cfg.CONTEXT_KEY_COGNITO_SERVICE)
+        return CognitoService(cfg=self.cfg)
 
-    def get_tokens(
+    async def get_tokens(
         self,
         request_args: Dict[str, str],
         expected_state: str,
@@ -114,7 +103,7 @@ class CognitoAuth:
         if state != expected_state:
             raise CognitoError("State for CSRF is not correct")
 
-        return self.cognito_service.exchange_code_for_token(
+        return await self.cognito_service.exchange_code_for_token(
             code=code,
             code_verifier=code_verifier,
         )

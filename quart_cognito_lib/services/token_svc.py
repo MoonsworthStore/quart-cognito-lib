@@ -4,8 +4,8 @@ from urllib.error import HTTPError
 import jwt
 from jwt import PyJWK, PyJWKClient, PyJWKClientError
 
-from flask_cognito_lib.config import Config
-from flask_cognito_lib.exceptions import CognitoError, TokenVerifyError
+from quart_cognito_lib.config import Config
+from quart_cognito_lib.exceptions import CognitoError, TokenVerifyError
 
 
 class TokenService:
